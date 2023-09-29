@@ -44,13 +44,42 @@ public class CurrencyConversion {
     
     public static void main(String[] args) {
         // Create the adjacency matrix for the currency exchange graph.
-        double[][] adjacencyMatrix = {
-            {0, 0.072, 0.41}, // NZD to AUD, USD
-            {0.072, 0, 0.048}, // AUD to NZD, USD
-            {0.41, 0.048, 0} // USD to NZD, AUD
-        };
+        // double[][] adjacencyMatrix = {
+        //     {0, 0.072, 0.41}, // NZD to AUD, USD
+        //     {0.072, 0, 0.048}, // AUD to NZD, USD
+        //     {0.41, 0.048, 0} // USD to NZD, AUD
+        // };
+        // double[][] adjacencyMatrix = {
+        //     {1, 0.928694, 0.59695, 0.488910}, // NZD to AUD, USD, GBP
+        //     {1.07678, 1, 0.642668, 0.526499}, // AUD to NZD, USD, GBP
+        //     {1.67574, 1.5562, 1, 0.819572}, // USD to NZD, AUD
+        //     {2.045651, 1.89968, 1.22008, 1} // GBP to NZD, AUD, USD
+        // };
 
-        String[] currencies = {"NZD", "AUD", "USD"};
+        // Used https://www.xe.com/currencyconverter/ for my currency conversions
+        // This is my conversions from the website:
+        // 1 NZD 
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        double[][] adjacencyMatrix = {
+            {0, 0.074277, 0.221868, 0.714001}, // NZD to AUD, USD, GBP
+            {0.075067, 0, 0.444929, 0.644523}, // AUD to NZD, USD, GBP
+            {0.510091, 0.435783, 0, 0.200406}, // USD to NZD, AUD
+            {0.707958, 0.232719, 0.200642, 0} // GBP to NZD, AUD, USD
+        };        
+                
+        // Currencies inside matrix
+        String[] currencies = {"NZD", "AUD", "USD", "GBP"};
 
         // Iterate over all pairs of currencies
         for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) {
