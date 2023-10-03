@@ -83,18 +83,18 @@ public class CurrencyConversion {
         //
         
         //TODO: Test Case 1
-        // double[][] adjacencyMatrix = {
-        //     {0, 0.074277, 0.221868, 0.714001}, // NZD to AUD, USD, GBP
-        //     {0.075067, 0, 0.444929, 0.644523}, // AUD to NZD, USD, GBP
-        //     {0.510091, 0.435783, 0, 0.200406}, // USD to NZD, AUD
-        //     {0.707958, 0.232719, 0.200642, 0} // GBP to NZD, AUD, USD
-        // };      
         double[][] adjacencyMatrix = {
-            {0, 0.5, 0.8, 0.5},  // Currency A to B, C, D
-            {2, 0, 2, 1},        // Currency B to A, C, D (Modified rate to create arbitrage)
-            {1.25, 0.5, 0, 0.5}, // Currency C to A, B, D
-            {2, 1, 2, 0}         // Currency D to A, B, C
-        };
+            {0, 0.074277, 0.221868, 0.714001}, // NZD to AUD, USD, GBP
+            {0.075067, 0, 0.444929, 0.644523}, // AUD to NZD, USD, GBP
+            {0.510091, 0.435783, 0, 0.200406}, // USD to NZD, AUD
+            {0.707958, 0.232719, 0.200642, 0} // GBP to NZD, AUD, USD
+        };      
+        // double[][] adjacencyMatrix = {
+        //     {0, 0.5, 0.8, 0.5},  // Currency A to B, C, D
+        //     {2, 0, 2, 1},        // Currency B to A, C, D (Modified rate to create arbitrage)
+        //     {1.25, 0.5, 0, 0.5}, // Currency C to A, B, D
+        //     {2, 1, 2, 0}         // Currency D to A, B, C
+        // };
         
         // double[][] adjacencyMatrix = {
         //     {1, 0.651, -0.581},
