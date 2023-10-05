@@ -1,216 +1,294 @@
+import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class CurrencyConversion {
 
-    public static double findBestConversionRate(double[][] adjacencyMatrix, int sourceCurrencyIndex, int targetCurrencyIndex, int[] predecessors, boolean checkArbitrage) {
-        // 4
-        int n = adjacencyMatrix.length;
-    
-        // Initialize the distances to all nodes to be infinity.
-        double[] distances = new double[n];
+    //TODO: RENAME CLASS TO CURRENCYCONVERSION WHEN SUBMITTING
+
+    // Represents positive infinity for path distances in the algorithm
+    private static final double INF = Double.POSITIVE_INFINITY;
+
+    // Represents an invalid or nonexistent previous currency index
+    private static final int NO_PREVIOUS_CURRENCY = -1;
+
+    // Define a set to keep track of detected arbitrage sequences
+    private static Set<String> arbitrageSequences = new HashSet<>();
+
+    /**
+     * Converts a given graph of exchange rates to a graph of negative logarithms
+     * to prepare it for shortest path calculations.
+     * 
+     * @param graph The original graph of exchange rates.
+     * @return A new graph with negative logarithmic values.
+     */
+    public static double[][] negativeLogarithmConverter(double[][] graph) {
+        int n = graph.length;
+        double[][] result = new double[n][n];
+
+        // Iterate through the rows and columns of the original graph
         for (int i = 0; i < n; i++) {
-            distances[i] = Double.POSITIVE_INFINITY;
+            for (int j = 0; j < n; j++) {
+                // Convert each exchange rate to its negative logarithmic value
+                result[i][j] = -Math.log(graph[i][j]);
+            }
         }
-    
-        // Set the distance to the source currency to be 0.
-        distances[sourceCurrencyIndex] = 0;
-    
-        // Relax the edge weights until there are no more changes in distances.
-        boolean relaxed = true;
-        while (relaxed) {
-            relaxed = false;
-            for (int u = 0; u < n; u++) {
-                for (int v = 0; v < n; v++) {
-                    if (adjacencyMatrix[u][v] != Double.POSITIVE_INFINITY && distances[u] + adjacencyMatrix[u][v] < distances[v]) {
-                        distances[v] = distances[u] + adjacencyMatrix[u][v];
-                        predecessors[v] = u;
-                        relaxed = true;
+        // Return the result of the conversion
+        return result;
+    }
+
+    /**
+     * Finds the best conversion rate from a source currency to a destination currency
+     * and detects arbitrage opportunities in the currency exchange system.
+     * 
+     * @param currencies   An array of currency codes representing the currencies in the system.
+     * @param ratesMatrix  A matrix containing exchange rates between currencies.
+     * @param source       The index of the source currency in the 'currencies' array.
+     * @param destination  The index of the destination currency in the 'currencies' array.
+     */
+    public static void findBestRateOrArbitrage(String[] currencies, double[][] ratesMatrix, int source, int destination) {
+        
+        // Convert the exchange rate graph to a graph of negative logarithmic values
+        double[][] transGraph = negativeLogarithmConverter(ratesMatrix);
+        int n = transGraph.length;
+        double[] minDist = new double[n];
+        int[] previousCurrency = new int[n];
+
+        // Initialize arrays to store minimum distances and previous currency information
+        Arrays.fill(minDist, INF);
+        Arrays.fill(previousCurrency, NO_PREVIOUS_CURRENCY);
+
+        // The source currency has a distance of 0
+        minDist[source] = 0;
+
+        // Perform the Bellman-Ford algorithm to find the shortest path
+        for (int i = 0; i < n - 1; i++) {
+            for (int sourceCurr = 0; sourceCurr < n; sourceCurr++) {
+                for (int destCurr = 0; destCurr < n; destCurr++) {
+                    if (minDist[destCurr] > minDist[sourceCurr] + transGraph[sourceCurr][destCurr]) {
+                        minDist[destCurr] = minDist[sourceCurr] + transGraph[sourceCurr][destCurr];
+                        previousCurrency[destCurr] = sourceCurr;
                     }
                 }
             }
         }
-    
-        // Check for negative cycles in the graph.
-        for (int u = 0; u < n; u++) {
-            for (int v = 0; v < n; v++) {
-                if (adjacencyMatrix[u][v] != Double.POSITIVE_INFINITY && distances[u] + adjacencyMatrix[u][v] < distances[v]) {
-                    // There is a negative cycle in the graph.
-                    System.err.println("There is a negative cycle in the currency exchange graph.");
-                    return Double.NaN;
-                    // return -1;
-                }
-            }
-        }
 
-        // Arbitrage code
-        boolean arbitrageDetected = false; // New flag to track arbitrage
-
+        // Check for negative cycle
         for (int sourceCurr = 0; sourceCurr < n; sourceCurr++) {
             for (int destCurr = 0; destCurr < n; destCurr++) {
-                if (adjacencyMatrix[sourceCurr][destCurr] != Double.POSITIVE_INFINITY && distances[sourceCurr] + adjacencyMatrix[sourceCurr][destCurr] < distances[destCurr]) {
-                    distances[destCurr] = distances[sourceCurr] + adjacencyMatrix[sourceCurr][destCurr];
-                    predecessors[destCurr] = sourceCurr;
-                    if (checkArbitrage) {
-                        arbitrageDetected = true; // Arbitrage opportunity detected
+                if (minDist[destCurr] > minDist[sourceCurr] + transGraph[sourceCurr][destCurr]) {
+                    // Construct the arbitrage sequence as a string
+                    StringBuilder arbitrageSequence = new StringBuilder();
+                    int curr = sourceCurr;
+                    do {
+                        arbitrageSequence.append(currencies[curr]).append(" --> ");
+                        curr = previousCurrency[curr];
+                    } while (curr != sourceCurr);
+
+                    // Check if this arbitrage sequence has not been detected before
+                    if (!arbitrageSequences.contains(arbitrageSequence.toString())) {
+                        // Negative cycle found, print arbitrage sequence
+                        printArbitrageSequence(currencies, previousCurrency, sourceCurr, ratesMatrix);
+
+                        // Add the arbitrage sequence to the set of detected sequences
+                        arbitrageSequences.add(arbitrageSequence.toString());
                     }
+                    return;
                 }
             }
         }
 
-        if (checkArbitrage && arbitrageDetected) {
-            return -1.0; // Arbitrage opportunity detected
-        }
-    
-        return distances[targetCurrencyIndex];
-    }    
-
-    
-    public static void main(String[] args) {
-        // Create the adjacency matrix for the currency exchange graph.
-        // double[][] adjacencyMatrix = {
-        //     {0, 0.072, 0.41}, // NZD to AUD, USD
-        //     {0.072, 0, 0.048}, // AUD to NZD, USD
-        //     {0.41, 0.048, 0} // USD to NZD, AUD
-        // };
-        // double[][] adjacencyMatrix = {
-        //     {1, 0.928694, 0.59695, 0.488910}, // NZD to AUD, USD, GBP
-        //     {1.07678, 1, 0.642668, 0.526499}, // AUD to NZD, USD, GBP
-        //     {1.67574, 1.5562, 1, 0.819572}, // USD to NZD, AUD, GBP
-        //     {2.045651, 1.89968, 1.22008, 1} // GBP to NZD, AUD, USD
-        // };
-
-        // TODO: Make a Table 2 from the assignment requirement for testing purposes (might have to make a second adjacency matrix, or comment out old one?)
-        //
-        
-        //TODO: Test Case 1
-        double[][] adjacencyMatrix = {
-            {0, 0.074277, 0.221868, 0.714001}, // NZD to AUD, USD, GBP
-            {0.075067, 0, 0.444929, 0.644523}, // AUD to NZD, USD, GBP
-            {0.510091, 0.435783, 0, 0.200406}, // USD to NZD, AUD
-            {0.707958, 0.232719, 0.200642, 0} // GBP to NZD, AUD, USD
-        };      
-        // double[][] adjacencyMatrix = {
-        //     {0, 0.5, 0.8, 0.5},  // Currency A to B, C, D
-        //     {2, 0, 2, 1},        // Currency B to A, C, D (Modified rate to create arbitrage)
-        //     {1.25, 0.5, 0, 0.5}, // Currency C to A, B, D
-        //     {2, 1, 2, 0}         // Currency D to A, B, C
-        // };
-        
-        // double[][] adjacencyMatrix = {
-        //     {1, 0.651, -0.581},
-        //     {-1.531, 1, 0.952},
-        //     {1.711, 1.049, 1}
-        // };
-        
-             
-        // Currencies inside matrix
-        String[] currencies = {"NZD", "AUD", "USD", "GBP"};
-        // String[] currencies = {"NZD", "AUD", "USD"};
-        // testCurrencyConversion(adjacencyMatrix, currencies);
-        boolean arbitrageDetected = testCurrencyConversion(adjacencyMatrix, currencies);
-
-        if (!arbitrageDetected) {
-            System.out.println("\nNo arbitrage opportunities found.\n");
-        }
-
-        //TODO: Test Case 2
-        // double[][] adjacencyMatrix2 = {
-        //TODO: Test Case 3
-
-        //TODO: Test Case 4
-        
+        // No negative cycle found, so print best conversion sequence
+        printBestConversionSequence(currencies, previousCurrency, source, destination, minDist);
+        System.out.println("No arbitrage opportunities.");
     }
 
-    public static boolean testCurrencyConversion(double[][] adjacencyMatrix, String[] currencies) 
-    {
-        System.out.println("\nCurrency Conversion between " + Arrays.toString(currencies) + ":");
-        boolean arbitrageDetected = false;
+   
+    /**
+     * Prints the arbitrage sequence, exchange rates, and the type of arbitrage detected.
+     * 
+     * @param currencies        Array of currency symbols.
+     * @param previousCurrency  Array of previous currency indices.
+     * @param sourceCurr        Source currency index.
+     * @param ratesMatrix       2D array of exchange rates between currencies.
+     */
+    private static void printArbitrageSequence(String[] currencies, int[] previousCurrency, int sourceCurr, double[][] ratesMatrix) {
+        
+        // Initialize a list to store the currency indices in the arbitrage sequence
+        List<Integer> printCycle = new ArrayList<>();
+        printCycle.add(sourceCurr);
+    
+        // Holds exchange rate, initialized with 1.0
+        double totalExchangeRate = 1.0; 
 
-        for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) 
+        // Traverse the sequence to construct the arbitrage cycle and calculate exchange rates
+        while (!printCycle.contains(previousCurrency[sourceCurr])) {
+            printCycle.add(previousCurrency[sourceCurr]);
+            int prevCurr = previousCurrency[sourceCurr];
+            double exchangeRate = ratesMatrix[prevCurr][sourceCurr];
+            totalExchangeRate *= exchangeRate; // Calculate the exchange rate
+            sourceCurr = prevCurr;
+        }
+    
+        // Add the previous currency of the source currency to complete the cycle
+        printCycle.add(previousCurrency[sourceCurr]);
+    
+        // Print the detected arbitrage sequence
+        System.out.println("\nArbitrage opportunity detected, the rate is: " + totalExchangeRate);
+        System.out.print("Arbitrage sequence is: ");
+        for (int i = printCycle.size() - 1; i >= 0; i--) {
+            System.out.print(currencies[printCycle.get(i)]);
+            if (i != 0) {
+                System.out.print(" --> ");
+            }
+        }
+        System.out.println();
+    
+        // Print type of arbitrage opportunity
+        if(totalExchangeRate > 1)
         {
-            for (int targetCurrencyIndex = 0; targetCurrencyIndex < currencies.length; targetCurrencyIndex++) {
-                if (sourceCurrencyIndex != targetCurrencyIndex) {
-                    int[] predecessors = new int[currencies.length];
-                    double bestConversionRate = findBestConversionRate(adjacencyMatrix, sourceCurrencyIndex, targetCurrencyIndex, predecessors, true);
-                    
-                    if (Double.isNaN(bestConversionRate)) {
-                    // if (bestConversionRate == -1) {
-                        System.out.println("There is a negative cycle in the currency exchange graph, so there is no valid conversion rate.");
-                        arbitrageDetected = true;
-                    } else if (bestConversionRate > 1.0) {
-                        System.out.println("\nArbitrage opportunity detected!");
-                        arbitrageDetected = true;
-                        System.out.println("Arbitrage conversion rate from " + currencies[sourceCurrencyIndex] + " to " 
-                                            + currencies[targetCurrencyIndex] + " is: " + bestConversionRate);
-                        System.out.print("The arbitrage sequence is: ");
-                        int i = targetCurrencyIndex;
+            System.out.println("Its a circular arbitrage.");
+        } 
+        if (totalExchangeRate < 1)
+        {
+            System.out.println("Its a round-trip arbitrage.");
+        }
+    }
 
-                        while(i != sourceCurrencyIndex) {
-                            System.out.print(currencies[i] + " <- ");
-                            i = predecessors[i];
-                        }
-                        System.out.println(currencies[sourceCurrencyIndex]);
-                    } else {
-                        // Format the conversion rate to display 6 decimal places
-                        String formattedRate = String.format("%.6f", bestConversionRate);
-                        System.out.println("\nThe best conversion rate from " + currencies[sourceCurrencyIndex] + " to " 
-                                            + currencies[targetCurrencyIndex] + " is: " + formattedRate);
-                    
-                        System.out.print("The sequence of exchanges is: ");
-                        int i = targetCurrencyIndex;
+    /**
+     * Prints the best conversion sequence and rate from a source currency to a destination currency.
+     * 
+     * @param currencies        An array of currency codes representing the currencies in the system.
+     * @param previousCurrency  An array containing the previous currency index for each currency in the sequence.
+     * @param source            The index of the source currency.
+     * @param destination       The index of the destination currency.
+     * @param minDist           An array of minimum distances representing the shortest path distances.
+     */
+    private static void printBestConversionSequence(String[] currencies, int[] previousCurrency, int source, int destination, double[] minDist) {
+        
+        // Initialize a list to store the currency indices in the conversion sequence
+        List<Integer> path = new ArrayList<>();
+        
+        // Traverse the sequence to construct the conversion path
+        for (int curr = destination; curr != NO_PREVIOUS_CURRENCY; curr = previousCurrency[curr]) {
+            path.add(curr);
+        }
+        Collections.reverse(path);
 
-                        while(i != sourceCurrencyIndex) {
-                            System.out.print(currencies[i] + " <- ");
-                            i = predecessors[i];
-                        }
-                        System.out.println(currencies[sourceCurrencyIndex]);
-                    }
+        // Calculate the best conversion rate using the minimum distance
+        double bestConversionRate = Math.exp(-minDist[destination]);
+        String formattedRate = new DecimalFormat("0.######").format(bestConversionRate);
+
+        // Print the best conversion rate and sequence
+        System.out.println("\nThe best conversion rate from " + currencies[source] + " to " + currencies[destination] + " is: " + formattedRate);
+        System.out.print("Best conversion sequence: ");
+        for (int i = 0; i < path.size(); i++) {
+            System.out.print(currencies[path.get(i)]);
+            if (i != path.size() - 1) {
+                System.out.print(" --> ");
+            }
+        }
+        System.out.println();
+    }
+
+    /**
+     * The main function of the CurrencyConversion program.
+     * It performs currency conversion calculations and detects arbitrage opportunities
+     * based on provided exchange rate data and test cases.
+     */
+    public static void main(String[] args) {
+        
+        // Define arrays to store currency codes and exchange rate matrices for different scenarios
+
+        // My real world currency exchange data
+        String[] currencies = {"NZD", "AUD", "USD", "GBP"};
+        String[] currencies2 = {"NZD", "MXN", "ILS", "CHF"};
+        String[] currencies3 = {"A", "B", "C", "D"};
+
+        
+        // Exchange rates from NZD to AUD, USD, GBP
+        // Exchange rates from AUD to NZD, USD, GBP
+        // Exchange rates from USD to NZD, AUD, GBP
+        // Exchange rates from GBP to NZD, AUD, USD
+        double[][] rates = {
+        // This doesnt cause an arbitrage opportunity, so it then prints out the best currency conversions
+            {0, 0.074277, 0.221868, 0.714001}, // NZD (New Zealand Dolalr) to AUD (Australian Dollar), USD (American Dollar), GBP (Great British Pound)
+            {0.075067, 0, 0.444929, 0.644523}, // AUD to NZD, USD, GBP
+            {0.510091, 0.435783, 0, 0.200406}, // USD to NZD, AUD, GBP
+            {0.707958, 0.232719, 0.200642, 0} // GBP to NZD, AUD, USD 
+        };  
+
+        // Exchange rates for NZD, MXN, ILS, CHF
+        // Exchange rates for MXN to NZD, MXN, ILS, CHF
+        // Exchange rates for ILS to NZD, MXN, ILS, CHF
+        // Exchange rates for CHF to NZD, MXN, ILS, CHF
+        double[][] rates2 = {
+        // This causes an arbitrage opportunity
+            {0, 10.677554, 2.2797462, 0.54266646},  // New Zealand Dollar to New Zealand Dollar, Mexican Peso, Israeli New Shekel, Swiss Franc
+            {0.09367178, 0, 0.21356324, 0.050830071}, // Mexican Peso to New Zealand Dollar, Mexican Peso, Israeli New Shekel, Swiss Franc
+            {0.43849232, 4.681682, 0, 0.2380004}, // Israeli Shekel to New Zealand Dollar, Mexican Peso, Israeli New Shekel, Swiss Franc
+            {1.8424752, 19.663871, 4.2006104, 0} // Swiss Franc to New Zealand Dollar, Mexican Peso, Israeli New Shekel, Swiss Franc
+        };
+        
+        // Test Case
+        double[][] testCase = {
+        // This causes an arbitrage opportunity
+            {0, 0.5, 0.8, 0.5},  // NZD to AUD, USD, GBP
+            {2, 0, 2, 1},        // AUD to NZD, USD, GBP (Modified rate to create arbitrage)
+            {1.5, 0.5, 0, 0.5},  // USD to NZD, AUD (Changed value of USD to cause arbitrage opportunity)
+            {0.7, 0.232719, 0.200642, 0}  // GBP to NZD, AUD, USD (Changed value of GBP to cause arbitrage opportunity)
+        };
+
+        System.out.println("\nThis is my Currency Conversion/ Arbitrage Detecting code." + "\n" 
+                         + "There are 3 matrix's, two have values from 4 different currencies I gathered"
+                         + "\n" + "using the website \"https://www.xe.com/currencyconverter/\".");
+        
+        System.out.println("\nCURRENCY CONVERSION BETWEEN " + Arrays.toString(currencies) + ":");
+
+        // Call the findBestRateOrArbitrage function for all pairs of currencies in the first scenario
+        for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) {
+            for (int destinationCurrencyIndex = 0; destinationCurrencyIndex < currencies.length; destinationCurrencyIndex++) {
+                if (sourceCurrencyIndex != destinationCurrencyIndex) {
+                    findBestRateOrArbitrage(currencies, rates, sourceCurrencyIndex, destinationCurrencyIndex);
+                    System.out.println();
                 }
             }
         }
-        return arbitrageDetected;
-    }   
-    // TODO: CODE TO MAYBE ADD BACK TO STUFF
-    private void backToMain()
-    {
-        // TODO: ADD TO LINE 107+ 
-        // double[][] adjacencyMatrix = {
-        //     {0, -0.693147, -0.916291}, // Currency A to B and C
-        //     {-0.693147, 0, -0.510826}, // Currency B to A and C
-        //     {-0.916291, -0.587787, 0} // Currency C to A and B
-        // };
-        // String[] currencies = {"A", "B", "C"};
-        // testCurrencyConversion(adjacencyMatrix, currencies);
 
-        // Header of what currencies being used
-        // System.out.println("\nCurrency Conversion between NZD, AUD, USD, and GBP:");
-        
-        // // Iterate over all pairs of currencies
-        // for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) {
-        //     for (int targetCurrencyIndex = 0; targetCurrencyIndex < currencies.length; targetCurrencyIndex++) {
-        //         if (sourceCurrencyIndex != targetCurrencyIndex) {
-        //             int[] predecessors = new int[currencies.length];
-        //             // Find the best conversion rate.
-        //             double bestConversionRate = findBestConversionRate(adjacencyMatrix, sourceCurrencyIndex, targetCurrencyIndex, predecessors);
-                    
-        //             // Print the best conversion rate, or an error message if there is a negative cycle.
-        //             if (Double.isNaN(bestConversionRate)) {
-        //                 System.err.println("There is a negative cycle in the currency exchange graph, so there is no valid conversion rate.");
-        //             } else {
-        //                 System.out.println("\nThe best conversion rate from " + currencies[sourceCurrencyIndex] + " to " 
-        //                                     + currencies[targetCurrencyIndex] + " is: " + bestConversionRate);
-                    
-        //                 System.out.print("The sequence of exchanges is: ");
-        //                 int i = targetCurrencyIndex;
-        //                 while(i != sourceCurrencyIndex) {
-        //                     System.out.print(currencies[i] + " <- ");
-        //                     i = predecessors[i];
-        //                 }
-        //                 System.out.println(currencies[sourceCurrencyIndex]);
-        //             }
-        //         }
-        //     }
-        // }
+        System.out.println("\nCURRENCY CONVERSION BETWEEN " + Arrays.toString(currencies) + ":");
+
+        // Code to call the specific conversion, source = 0 is NZD, and destination = 3 is GBP conversion
+        int source = 0;
+        int destination = 3; 
+        findBestRateOrArbitrage(currencies, rates, source, destination);
+        System.out.println();
+
+        System.out.println("\nCURRENCY CONVERSION BETWEEN " + Arrays.toString(currencies2) + ":");
+
+        // Call the findBestRateOrArbitrage function for all pairs of currencies in the second scenario
+        for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) {
+            for (int destinationCurrencyIndex = 0; destinationCurrencyIndex < currencies.length; destinationCurrencyIndex++) {
+                if (sourceCurrencyIndex != destinationCurrencyIndex) {
+                    findBestRateOrArbitrage(currencies2, rates2, sourceCurrencyIndex, destinationCurrencyIndex);
+                }
+            }
+        }
+
+        System.out.println();
+        System.out.println("\nCURRENCY CONVERSION BETWEEN " + Arrays.toString(currencies3) + ":");
+
+        // Call the findBestRateOrArbitrage function for all pairs of currencies in the third scenario (test case)
+        for (int sourceCurrencyIndex = 0; sourceCurrencyIndex < currencies.length; sourceCurrencyIndex++) {
+            for (int destinationCurrencyIndex = 0; destinationCurrencyIndex < currencies.length; destinationCurrencyIndex++) {
+                if (sourceCurrencyIndex != destinationCurrencyIndex) {
+                    findBestRateOrArbitrage(currencies3, testCase, sourceCurrencyIndex, destinationCurrencyIndex);
+                }
+            }
+        }
+        System.out.println();
     }
-
 }
